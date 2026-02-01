@@ -1,5 +1,4 @@
 # SmallCell Advisor - Documentation Complète
-
 ## 📡 Description
 
 **SmallCell Advisor** est un outil d'aide à la décision pour la planification RF des réseaux 4G/5G. Il permet de déterminer si le déploiement d'une Small Cell est nécessaire pour assurer une couverture indoor satisfaisante.
@@ -69,10 +68,10 @@ tabulate>=0.9.0        # Formatage de tableaux
 
 ## 🚀 Installation
 
-### 1. Cloner ou Télécharger le Projet
+### 1. Cloner ou Télécharger le Projet 
 
 ```bash
-git clone https://github.com/votre-repo/smallcell-advisor.git
+git clone https://github.com/Hamit-Amir-Mahamat/smallcell-advisor.git
 cd smallcell-advisor
 ```
 
