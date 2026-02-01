@@ -800,36 +800,294 @@ if st.button("Lancer le Calcul", type="primary", width="stretch"):
         # ========== EXPORT ==========
         st.markdown("## 💾Export des Résultats")
         
-        df_results = pd.DataFrame({
-            'Paramètre': ['Technologie', 'Fréquence (MHz)', 'Distance (m)', 'Environnement', 'Matériau', 
-                         'EIRP (dBm)', 'PL Outdoor (dB)', 'PL Pénétration (dB)', 'RSRP (dBm)', 
-                         'Seuil (dBm)', 'Marge (dB)', 'Qualité', 'Small Cell'],
-            'Valeur': [tech_label, frequence, distance, environnement, materiau_facade, 
-                      results.details['eirp_dbm'], results.path_loss_outdoor_db, perte_penetration, 
-                      results.puissance_rx_dbm, seuil_rsrp, results.marge_db, results.qualite_signal, 
-                      'OUI' if results.small_cell_requise else 'NON']
-        })
-        
+        # Déterminer la décision pour l'export
         if mode_avance:
-            df_prob = pd.DataFrame({
-                'Paramètre': ['Probabilité (%)', 'Sigma (dB)', 'Marge 95% (dB)'],
-                'Valeur': [results.probabilite_couverture, results.sigma_shadowing_db, results.marge_requise_95]
-            })
-            df_results = pd.concat([df_results, df_prob], ignore_index=True)
+            if results.probabilite_couverture >= 95:
+                decision_export = "Non nécessaire"
+            elif results.probabilite_couverture >= 80:
+                decision_export = "Recommandée"
+            else:
+                decision_export = "Requise"
+        else:
+            decision_export = "Requise" if results.small_cell_requise else "Non nécessaire"
+
+        # Créer le DataFrame pour export
+        df_results = pd.DataFrame({
+            'Paramètre': [
+                'Technologie', 
+                'Fréquence (MHz)', 
+                'Distance (m)', 
+                'Environnement', 
+                'Matériau Façade',
+                'Perte Pénétration (dB)',
+                'EIRP (dBm)', 
+                'Path Loss Outdoor (dB)', 
+                'RSRP (dBm)', 
+                'Seuil QoS (dBm)', 
+                'Marge (dB)', 
+                'Qualité Signal',
+                'Probabilité Couverture (%)',
+                'Small Cell'
+            ],
+            'Valeur': [
+                tech_label, 
+                frequence, 
+                distance, 
+                environnement, 
+                materiau_facade.replace('_', ' ').title(),
+                perte_penetration,
+                f"{results.details['eirp_dbm']:.2f}", 
+                f"{results.path_loss_outdoor_db:.2f}", 
+                f"{results.puissance_rx_dbm:.2f}", 
+                f"{seuil_rsrp:.2f}", 
+                f"{results.marge_db:.2f}", 
+                results.qualite_signal,
+                f"{results.probabilite_couverture:.1f}" if mode_avance else "N/A",
+                decision_export  # ← Corrigé
+            ]
+        })
         
         col1, col2 = st.columns(2)
         with col1:
+            # Bouton CSV 
             st.download_button(
                 "📥 Télécharger CSV", 
                 data=df_results.to_csv(index=False).encode('utf-8'),
                 file_name=f"rf_planning_{tech_label}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv", 
                 width="stretch"
             )
+
         with col2:
+            # Générer le PDF directement sans bouton intermédiaire
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib import colors
+            from reportlab.lib.units import cm
+            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.enums import TA_CENTER, TA_LEFT
+            from io import BytesIO
+            
+            # Créer le buffer PDF en mémoire
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4, 
+                                   rightMargin=2*cm, leftMargin=2*cm,
+                                   topMargin=2*cm, bottomMargin=2*cm)
+            
+            # Styles
+            styles = getSampleStyleSheet()
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=18,
+                textColor=colors.HexColor('#4b4040'),
+                spaceAfter=30,
+                alignment=TA_CENTER
+            )
+            
+            heading_style = ParagraphStyle(
+                'CustomHeading',
+                parent=styles['Heading2'],
+                fontSize=14,
+                textColor=colors.HexColor('#5a4a42'),
+                spaceAfter=12
+            )
+            
+            # Contenu du PDF
+            story = []
+            
+            # Titre
+            story.append(Paragraph("SmallCell Advisor - Rapport d'Analyse Radiofrequence", title_style))
+            story.append(Spacer(1, 0.5*cm))
+            
+            # Informations générales
+            story.append(Paragraph("Informations Générales", heading_style))
+            info_data = [
+                ['Paramètre', 'Valeur'],
+                ['Date', datetime.now().strftime("%d/%m/%Y %H:%M:%S")],
+                ['Technologie', tech_label],
+                ['Fréquence', f"{frequence} MHz"],
+                ['Distance', f"{distance} m"],
+                ['Environnement', environnement.replace('_', ' ').title()],
+                ['Type de façade', materiau_facade.replace('_', ' ').title()],
+                ['Type de liaison', 'LOS' if is_los else 'NLOS']
+            ]
+            
+            info_table = Table(info_data, colWidths=[8*cm, 8*cm])
+            info_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#5a4a42')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.grey)
+            ]))
+            story.append(info_table)
+            story.append(Spacer(1, 1*cm))
+            
+            # Résultats du calcul
+            story.append(Paragraph("Résultats du Calcul", heading_style))
+            
+            results_data = [
+                ['Paramètre', 'Valeur'],
+                ['EIRP', f"{results.details['eirp_dbm']:.2f} dBm"],
+                ['Path Loss Outdoor', f"{results.path_loss_outdoor_db:.2f} dB"],
+                ['Perte de Pénétration', f"{perte_penetration} dB"],
+                ['Path Loss Total', f"{results.path_loss_total_db:.2f} dB"],
+                ['RSRP Calculé', f"{results.puissance_rx_dbm:.2f} dBm"],
+                ['Seuil QoS', f"{seuil_rsrp:.2f} dBm"],
+                ['Marge', f"{results.marge_db:.2f} dB"],
+                ['Qualité du Signal', results.qualite_signal]
+            ]
+            
+            if mode_avance:
+                results_data.extend([
+                    ['Probabilité de Couverture', f"{results.probabilite_couverture:.1f}%"],
+                    ['Écart-type Shadowing', f"{results.sigma_shadowing_db} dB"],
+                    ['Marge requise (95%)', f"{results.marge_requise_95:.1f} dB"]
+                ])
+            
+            results_table = Table(results_data, colWidths=[10*cm, 6*cm])
+            results_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#5a4a42')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.grey)
+            ]))
+            story.append(results_table)
+            story.append(Spacer(1, 1*cm))
+            
+            # Décision
+            story.append(Paragraph("Recommandation Technique", heading_style))
+            
+            # Déterminer couleur selon décision
+            if mode_avance:
+                if results.probabilite_couverture >= 95:
+                    decision_text = "✓ Couverture Macro Suffisante"
+                    decision_color = colors.green
+                    decision_detail = f"La probabilité de couverture est de {results.probabilite_couverture:.1f}%, ce qui est excellent. Aucune Small Cell n'est nécessaire."
+                elif results.probabilite_couverture >= 80:
+                    decision_text = "⚠ Small Cell Recommandée"
+                    decision_color = colors.orange
+                    decision_detail = f"La probabilité de couverture est de {results.probabilite_couverture:.1f}%, ce qui est limite. Une Small Cell est recommandée pour améliorer la fiabilité."
+                else:
+                    decision_text = "✗ Small Cell Requise"
+                    decision_color = colors.red
+                    decision_detail = f"La probabilité de couverture est de {results.probabilite_couverture:.1f}%, ce qui est insuffisant. Le déploiement d'une Small Cell est obligatoire."
+            else:
+                if results.small_cell_requise:
+                    decision_text = "✗ Small Cell Requise"
+                    decision_color = colors.red
+                    decision_detail = f"Le RSRP ({results.puissance_rx_dbm:.2f} dBm) est inférieur au seuil ({seuil_rsrp:.2f} dBm). Une Small Cell est nécessaire."
+                else:
+                    decision_text = "✓ Couverture Macro Suffisante"
+                    decision_color = colors.green
+                    decision_detail = f"Le RSRP ({results.puissance_rx_dbm:.2f} dBm) est supérieur au seuil ({seuil_rsrp:.2f} dBm). La macro-cellule suffit."
+        
+            decision_data = [
+                ['Décision', 'Détails'],
+                [Paragraph(decision_text, styles['Normal']), 
+                 Paragraph(decision_detail, styles['Normal'])]  # ← Utiliser Paragraph pour wrapping
+            ]
+
+            decision_table = Table(decision_data, colWidths=[5*cm, 11*cm])  # ← Ajuster les largeurs
+            decision_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#5a4a42')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('TOPPADDING', (0, 1), (-1, -1), 10),      # ← Ajout padding
+                ('BOTTOMPADDING', (0, 1), (-1, -1), 10),   # ← Ajout padding
+                ('BACKGROUND', (0, 1), (0, 1), decision_color),
+                ('TEXTCOLOR', (0, 1), (0, 1), colors.whitesmoke),
+                ('FONTNAME', (0, 1), (0, 1), 'Helvetica-Bold'),
+                ('BACKGROUND', (1, 1), (1, 1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+                ('WORDWRAP', (0, 0), (-1, -1), True)      # ← Force le retour à la ligne
+            ]))
+            story.append(decision_table)
+            story.append(Spacer(1, 1*cm))
+            
+                       # Synthèse
+            story.append(Paragraph("Synthèse", heading_style))
+
+            # Déterminer la recommandation textuelle
+            if mode_avance:
+                if results.probabilite_couverture >= 95:
+                    recommandation_finale = "Aucune Small Cell n'est nécessaire. La macro-cellule assure une couverture excellente."
+                    emoji_recommandation = "✓"
+                elif results.probabilite_couverture >= 80:
+                    recommandation_finale = "L'installation d'une Small Cell est <b>recommandée</b> pour améliorer la fiabilité et atteindre 95% de couverture."
+                    emoji_recommandation = "⚠"
+                else:
+                    recommandation_finale = "Le déploiement d'une Small Cell est <b>obligatoire</b> pour garantir la qualité de service."
+                    emoji_recommandation = "✗"
+            else:
+                if results.small_cell_requise:
+                    recommandation_finale = "Le déploiement d'une Small Cell est <b>obligatoire</b> pour garantir la qualité de service."
+                    emoji_recommandation = "✗"
+                else:
+                    recommandation_finale = "Aucune Small Cell n'est nécessaire. La macro-cellule assure une couverture satisfaisante."
+                    emoji_recommandation = "✓"
+
+            # Texte de synthèse complet
+            synthese_text = f"""
+            <b>{emoji_recommandation} Synthèse de l'Analyse</b><br/><br/>
+
+            Dans un environnement <b>{environnement.replace('_', ' ')}</b> à une distance de <b>{distance} mètres</b>, 
+            l'utilisation de la technologie <b>{tech_label}</b> ({frequence} MHz) avec une façade de type 
+            <b>{materiau_facade.replace('_', ' ')}</b> ({perte_penetration} dB) conduit à un RSRP de 
+            <b>{results.puissance_rx_dbm:.2f} dBm</b>.
+            """
+
+            if mode_avance:
+                synthese_text += f"""<br/><br/>
+                L'analyse probabiliste indique une fiabilité de <b>{results.probabilite_couverture:.1f}%</b> 
+                avec un écart-type de shadowing de {results.sigma_shadowing_db} dB.
+                """
+
+            synthese_text += f"""<br/><br/>
+            <b>Recommandation :</b> {recommandation_finale}
+            """
+
+            story.append(Paragraph(synthese_text, styles['Normal']))
+            story.append(Spacer(1, 0.5*cm))
+            
+            # Footer
+            story.append(Spacer(1, 2*cm))
+            footer_style = ParagraphStyle(
+                'Footer',
+                parent=styles['Normal'],
+                fontSize=9,
+                textColor=colors.grey,
+                alignment=TA_CENTER
+            )
+            story.append(Paragraph(
+                "SmallCell Advisor<br/>Hamit Amir MAHAMAT", 
+                footer_style
+            ))
+            
+            # Générer le PDF
+            doc.build(story)
+            
+            # Récupérer le PDF
+            pdf_data = buffer.getvalue()
+            buffer.close()
+            
+            # Bouton de téléchargement DIRECT (sans bouton intermédiaire)
             st.download_button(
-                "📥 Télécharger Markdown", 
-                data=df_results.to_markdown(index=False),
-                file_name=f"rf_planning_{tech_label}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md", 
+                label="📥 Télécharger PDF",
+                data=pdf_data,
+                file_name=f"rapport_rf_{tech_label}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                mime="application/pdf",
                 width="stretch"
             )
     
