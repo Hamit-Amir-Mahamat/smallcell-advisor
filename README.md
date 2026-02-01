@@ -68,10 +68,10 @@ tabulate>=0.9.0        # Formatage de tableaux
 
 ## 🚀 Installation
 
-### 1. Cloner ou Télécharger le Projet
+### 1. Cloner ou Télécharger le Projet 
 
 ```bash
-git clone https://github.com/votre-repo/smallcell-advisor.git
+git clone https://github.com/Hamit-Amir-Mahamat/smallcell-advisor.git
 cd smallcell-advisor
 ```
 
