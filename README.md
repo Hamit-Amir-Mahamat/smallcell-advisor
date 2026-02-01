@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # SmallCell Advisor - Documentation Complète
 
 ## 📡 Description
@@ -494,3 +495,7 @@ Ce projet est développé dans un cadre du cours Ingenerie des Réseaux à l'Eco
 ---
 
 **SmallCell Advisor** - Optimisez vos déploiements RF avec confiance 📡
+=======
+# smallcell-advisor
+SmallCell Advisor est un outil d'aide à la décision pour la planification RF 4G/5G. Il calcule le bilan de liaison selon ITU-R P.1411 et détermine si un déploiement de Small Cell est nécessaire pour assurer la couverture indoor.
+>>>>>>> 11ba50697d695d4a95cda3f5e6aa62a3b6e68f00
